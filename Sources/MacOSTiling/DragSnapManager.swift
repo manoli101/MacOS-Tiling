@@ -65,9 +65,7 @@ final class DragSnapManager {
     private func onDrag() {
         let pos = NSEvent.mouseLocation
         if !isDraggingFar {
-            let dx = pos.x - dragStart.x
-            let dy = pos.y - dragStart.y
-            guard sqrt(dx * dx + dy * dy) > dragThreshold else { return }
+            guard hypot(pos.x - dragStart.x, pos.y - dragStart.y) > dragThreshold else { return }
             isDraggingFar = true
             // Capture window reference now that we know something is being dragged
             trackedWindow = windowManager.frontmostWindow()

@@ -6,9 +6,10 @@ enum Direction {
 
 enum TilingState: Equatable {
     case floating
+    case centered(screen: Int)     // ~60% width, 65% height, centrado en pantalla
     case leftHalf(screen: Int)
     case rightHalf(screen: Int)
-    case topHalf(screen: Int)      // mitad superior — intermedio antes de maximizar
+    case topHalf(screen: Int)
     case topLeft(screen: Int)
     case topRight(screen: Int)
     case bottomLeft(screen: Int)
@@ -18,6 +19,7 @@ enum TilingState: Equatable {
     static func == (lhs: TilingState, rhs: TilingState) -> Bool {
         switch (lhs, rhs) {
         case (.floating, .floating): return true
+        case (.centered(let a), .centered(let b)): return a == b
         case (.leftHalf(let a), .leftHalf(let b)): return a == b
         case (.rightHalf(let a), .rightHalf(let b)): return a == b
         case (.topHalf(let a), .topHalf(let b)): return a == b

@@ -63,8 +63,14 @@ final class TilingEngine {
         // floating
         case (.floating, .right): return .rightHalf(screen: currentScreen)
         case (.floating, .left):  return .leftHalf(screen: currentScreen)
-        case (.floating, .up):    return .topHalf(screen: currentScreen)  // mitad superior primero
-        case (.floating, .down):  return .floating                         // minimize handled in HotkeyManager
+        case (.floating, .up):    return .topHalf(screen: currentScreen)
+        case (.floating, .down):  return .centered(screen: currentScreen)
+
+        // centered → arrows move to halves; down restores; double-down (minimize) handled in HotkeyManager
+        case (.centered(let s), .right): return .rightHalf(screen: s)
+        case (.centered(let s), .left):  return .leftHalf(screen: s)
+        case (.centered(let s), .up):    return .maximized(screen: s)
+        case (.centered, .down):  return .floating
 
         // rightHalf
         case (.rightHalf(_), .right):    return hasRight ? .rightHalf(screen: nextRight) : .floating
@@ -121,6 +127,7 @@ final class TilingEngine {
     private func frame(for state: TilingState, screens: [NSScreen]) -> CGRect {
         switch state {
         case .floating:             return .zero
+        case .centered(let s):      return centered(screens[s])
         case .leftHalf(let s):      return leftHalf(screens[s])
         case .rightHalf(let s):     return rightHalf(screens[s])
         case .topHalf(let s):       return topHalf(screens[s])
@@ -130,6 +137,17 @@ final class TilingEngine {
         case .bottomRight(let s):   return bottomRight(screens[s])
         case .maximized(let s):     return screens[s].visibleFrame
         }
+    }
+
+    private func centered(_ screen: NSScreen) -> CGRect {
+        let sf = screen.frame        // full screen — for true horizontal center
+        let vf = screen.visibleFrame // visible area — for height and vertical bounds
+        let w = sf.width  * 0.65
+        let h = vf.height * 0.70
+        // Center horizontally on the full screen; vertically within the visible frame
+        let x = sf.midX - w / 2
+        let y = vf.minY + (vf.height - h) * 0.45  // slightly above true center
+        return CGRect(x: x, y: y, width: w, height: h)
     }
 
     private func topHalf(_ screen: NSScreen) -> CGRect {

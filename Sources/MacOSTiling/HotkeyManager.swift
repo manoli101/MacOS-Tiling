@@ -20,8 +20,8 @@ final class HotkeyManager {
     private let windowManager = WindowManager()
     private lazy var dragSnap  = DragSnapManager(windowManager: windowManager)
 
-    // Double-press Down detection for minimize
-    private var lastDownTime: Date = .distantPast
+    // Double-press Down detection for minimize (CACurrentMediaTime is monotonic and cheaper than Date)
+    private var lastDownTime: Double = 0
 
     func start() {
         HotkeyManager.instance = self
@@ -98,17 +98,17 @@ final class HotkeyManager {
         let engine = TilingEngine.shared
         let state  = engine.stateFor(windowID: winID)
 
-        // Down behavior: from floating requires double-press to minimize; from tiled states moves down
+        // Down: double-press from unsnapped states minimizes; single press centers or moves down
         if direction == .down {
-            if state == .floating {
-                let now = Date()
-                let isDouble = now.timeIntervalSince(lastDownTime) < 0.4
-                lastDownTime = now
-                if isDouble { windowManager.minimize(window) }
-                // Single Down from floating: no-op (consume event but don't move window)
-                return
+            let now = CACurrentMediaTime()
+            let isDouble = now - lastDownTime < 0.4
+            lastDownTime = now
+            switch state {
+            case .floating, .centered:
+                if isDouble { windowManager.minimize(window); return }
+            default:
+                break
             }
-            // From tiled states, Down moves to lower state as normal
         }
 
         let targetFrame = engine.handle(direction: direction, windowID: winID, currentFrame: currentFrame)
