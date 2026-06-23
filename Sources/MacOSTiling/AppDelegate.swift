@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -69,6 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(info("↑   Top half → maximize"))
         menu.addItem(info("↓   Restore → minimize"))
         menu.addItem(.separator())
+        let launchAtLogin = NSMenuItem(title: "Launch at Login",
+                                       action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        launchAtLogin.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        launchAtLogin.target = self
+        menu.addItem(launchAtLogin)
+        menu.addItem(.separator())
         let coffee = NSMenuItem(title: "☕  Buy me a coffee",
                                 action: #selector(openSponsors), keyEquivalent: "")
         coffee.target = self
@@ -82,6 +89,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        let service = SMAppService.mainApp
+        do {
+            if service.status == .enabled {
+                try service.unregister()
+            } else {
+                try service.register()
+            }
+        } catch {
+            NSLog("[Tyler] Launch at login toggle failed: \(error)")
+        }
+        rebuildMenu()
     }
 
     @objc private func openSponsors() {

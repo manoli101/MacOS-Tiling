@@ -92,7 +92,10 @@ final class HotkeyManager {
 
     private func tile(direction: Direction) {
         guard let window = windowManager.frontmostWindow(),
-              let currentFrame = windowManager.getFrame(window) else { return }
+              let currentFrame = windowManager.getFrame(window) else {
+            NSLog("[Tyler] tile: could not get frontmost window or frame")
+            return
+        }
 
         let winID = windowManager.windowID(window)
         let engine = TilingEngine.shared
