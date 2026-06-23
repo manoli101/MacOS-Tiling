@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
-APP_BUNDLE="$ROOT/MacOSTiling.app"
-DMG_NAME="MacOSTiling"
+APP_BUNDLE="$ROOT/Tyler.app"
+DMG_NAME="Tyler"
 DMG_TEMP="$ROOT/${DMG_NAME}-temp.dmg"
 DMG_FINAL="$ROOT/${DMG_NAME}.dmg"
 STAGING="$ROOT/dmg-staging"
@@ -16,7 +16,6 @@ echo "▶ Preparing DMG staging..."
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 cp -r "$APP_BUNDLE" "$STAGING/"
-# Symlink to /Applications for drag-install
 ln -s /Applications "$STAGING/Applications"
 
 echo "▶ Creating DMG..."
@@ -33,7 +32,6 @@ MOUNT_DIR="$(hdiutil attach -readwrite -noverify -noautoopen "$DMG_TEMP" | \
     grep -E '^/dev/' | tail -1 | awk '{print $NF}')"
 echo "  Mounted at: $MOUNT_DIR"
 
-# Set window position/size and icon layout via AppleScript
 osascript << APPLESCRIPT
 tell application "Finder"
     tell disk "$DMG_NAME"
@@ -45,7 +43,7 @@ tell application "Finder"
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 100
-        set position of item "MacOSTiling.app" of container window to {150, 150}
+        set position of item "Tyler.app" of container window to {150, 150}
         set position of item "Applications" of container window to {350, 150}
         close
         open
@@ -55,7 +53,6 @@ tell application "Finder"
 end tell
 APPLESCRIPT
 
-# Sync and unmount
 sync
 hdiutil detach "$MOUNT_DIR" -quiet
 
