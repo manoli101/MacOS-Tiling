@@ -26,8 +26,10 @@ final class HotkeyManager {
 
         attemptTapCreation()
 
+        // Fallback: only fires when CGEventTap is unavailable (no Input Monitoring permission)
         fallbackMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            _ = self?.handle(
+            guard let self, !self.tapIsActive else { return }
+            _ = self.handle(
                 keyCode: CGKeyCode(event.keyCode),
                 flags: CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue))
             )
@@ -35,7 +37,8 @@ final class HotkeyManager {
 
         let hid = HIDKeyboardMonitor()
         hid.onArrow = { [weak self] dir in
-            guard let self, !self.textFieldFocused() else { return }
+            // Only fire from HID when the CGEventTap is unavailable (no Input Monitoring permission)
+            guard let self, !self.tapIsActive, !self.textFieldFocused() else { return }
             self.tile(direction: dir)
         }
         hid.start()
@@ -139,10 +142,12 @@ final class HotkeyManager {
         if direction == .down {
             let isDouble = now - lastDownTime < 0.4
             lastDownTime = now
-            switch engine.stateFor(windowID: winID) {
-            case .floating, .centered where isDouble:
-                windowManager.minimize(window); return
-            default: break
+            if isDouble {
+                switch engine.stateFor(windowID: winID) {
+                case .floating, .centered:
+                    windowManager.minimize(window); return
+                default: break
+                }
             }
         }
 

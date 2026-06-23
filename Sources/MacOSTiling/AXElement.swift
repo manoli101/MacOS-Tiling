@@ -2,12 +2,7 @@ import AppKit
 @preconcurrency import ApplicationServices
 
 // Thin Swift wrapper around the C-based Accessibility API.
-// Consolidates all AX boilerplate so callers read intent, not mechanics.
 extension AXUIElement {
-
-    // MARK: - Static
-
-    static let systemWide: AXUIElement = AXUIElementCreateSystemWide()
 
     // MARK: - Identity
 
@@ -21,16 +16,10 @@ extension AXUIElement {
 
     // MARK: - Navigation
 
-    var focusedApp: AXUIElement?     { element(kAXFocusedApplicationAttribute) }
-    var focusedWindow: AXUIElement?  { element(kAXFocusedWindowAttribute) }
-    var mainWindow: AXUIElement?     { element(kAXMainWindowAttribute) }
-    var focusedUIElement: AXUIElement? { element(kAXFocusedUIElementAttribute) }
-    var role: String?                { string(kAXRoleAttribute) }
-    var allWindows: [AXUIElement]? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &ref) == .success else { return nil }
-        return ref as? [AXUIElement]
-    }
+    var focusedWindow: AXUIElement?     { element(kAXFocusedWindowAttribute) }
+    var mainWindow: AXUIElement?        { element(kAXMainWindowAttribute) }
+    var focusedUIElement: AXUIElement?  { element(kAXFocusedUIElementAttribute) }
+    var role: String?                   { string(kAXRoleAttribute) }
 
     // MARK: - Geometry (AX / Quartz coordinates)
 
@@ -58,7 +47,7 @@ extension AXUIElement {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, key as CFString, &ref) == .success,
               let r = ref else { return nil }
-        return (r as! AXUIElement) // AX API guarantees the type for known attributes
+        return (r as! AXUIElement)
     }
 
     private func cgPoint(_ key: String) -> CGPoint? {

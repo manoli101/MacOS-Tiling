@@ -13,7 +13,7 @@ final class TilingEngine {
     }
 
     private var records: [String: WindowRecord] = [:]
-    private let timeout: TimeInterval = 3.0
+    private let timeout: TimeInterval = 300.0  // 5 min — keeps undo/state alive across pauses
 
     private init() {}
 

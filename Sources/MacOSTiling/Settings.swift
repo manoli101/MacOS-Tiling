@@ -80,6 +80,12 @@ enum Settings {
         set { UserDefaults.standard.set(newValue, forKey: "showStatusIndicators"); notify() }
     }
 
+    // ── Layout icon in menu bar ───────────────────────────────────────
+    static var showLayoutInStatusIcon: Bool {
+        get { UserDefaults.standard.object(forKey: "showLayoutInStatusIcon") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "showLayoutInStatusIcon"); notify() }
+    }
+
     // ── Feature toggles ───────────────────────────────────────────────
     static var enableThirds: Bool {
         get { UserDefaults.standard.object(forKey: "enableThirds") as? Bool ?? true }
@@ -125,7 +131,7 @@ enum Settings {
 
     // ── Reset all ─────────────────────────────────────────────────────
     static func reset() {
-        let keys = ["windowGap", "showStatusIndicators",
+        let keys = ["windowGap", "showStatusIndicators", "showLayoutInStatusIcon",
                     "enableThirds", "enableUndo", "enableSnapOverlay", "enableCustomShortcuts"]
         keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
         resetShortcuts()

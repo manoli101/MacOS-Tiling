@@ -8,15 +8,15 @@ final class DragSnapManager {
     private var dragMonitor: Any?
     private var upMonitor:   Any?
 
-    private var dragStart        = CGPoint.zero
-    private var isDraggingFar    = false
-    private var trackedWindow:   AXUIElement?
-    private var initialFrame:    CGRect?
-    private var currentZone:     SnapZone?
-    private var overlayWindow:   SnapOverlayWindow?
+    private var dragStart:      CGPoint = .zero
+    private var isDraggingFar   = false
+    private var trackedWindow:  AXUIElement?
+    private var initialFrame:   CGRect?
+    private var currentZone:    SnapZone?
+    private var zoneIndicator:  ZoneIndicatorWindow?
 
-    private let edgeThreshold:   CGFloat = 24
-    private let cornerThreshold: CGFloat = 60
+    private let edgeThreshold:   CGFloat = 80
+    private let cornerThreshold: CGFloat = 120
     private let dragThreshold:   CGFloat = 8
 
     enum SnapZone: Equatable, CaseIterable {
@@ -27,13 +27,13 @@ final class DragSnapManager {
             let f = screen.visibleFrame
             let g = CGFloat(Settings.windowGap)
             switch self {
-            case .leftHalf:    return CGRect(x: f.minX+g,   y: f.minY+g,   width: f.width/2-g*1.5, height: f.height-g*2)
-            case .rightHalf:   return CGRect(x: f.midX+g/2, y: f.minY+g,   width: f.width/2-g*1.5, height: f.height-g*2)
+            case .leftHalf:    return CGRect(x: f.minX+g,   y: f.minY+g,   width: f.width/2-g*1.5,  height: f.height-g*2)
+            case .rightHalf:   return CGRect(x: f.midX+g/2, y: f.minY+g,   width: f.width/2-g*1.5,  height: f.height-g*2)
             case .maximize:    return g > 0 ? f.insetBy(dx: g, dy: g) : f
-            case .topLeft:     return CGRect(x: f.minX+g,   y: f.midY+g/2, width: f.width/2-g*1.5, height: f.height/2-g*1.5)
-            case .topRight:    return CGRect(x: f.midX+g/2, y: f.midY+g/2, width: f.width/2-g*1.5, height: f.height/2-g*1.5)
-            case .bottomLeft:  return CGRect(x: f.minX+g,   y: f.minY+g,   width: f.width/2-g*1.5, height: f.height/2-g*1.5)
-            case .bottomRight: return CGRect(x: f.midX+g/2, y: f.minY+g,   width: f.width/2-g*1.5, height: f.height/2-g*1.5)
+            case .topLeft:     return CGRect(x: f.minX+g,   y: f.midY+g/2, width: f.width/2-g*1.5,  height: f.height/2-g*1.5)
+            case .topRight:    return CGRect(x: f.midX+g/2, y: f.midY+g/2, width: f.width/2-g*1.5,  height: f.height/2-g*1.5)
+            case .bottomLeft:  return CGRect(x: f.minX+g,   y: f.minY+g,   width: f.width/2-g*1.5,  height: f.height/2-g*1.5)
+            case .bottomRight: return CGRect(x: f.midX+g/2, y: f.minY+g,   width: f.width/2-g*1.5,  height: f.height/2-g*1.5)
             }
         }
     }
@@ -42,16 +42,16 @@ final class DragSnapManager {
         self.windowManager = windowManager
         downMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in self?.onDown() }
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in self?.onDrag() }
-        upMonitor   = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in self?.onUp() }
+        upMonitor   = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp)     { [weak self] _ in self?.onUp() }
     }
 
     // MARK: - Mouse handlers
 
     private func onDown() {
-        dragStart = NSEvent.mouseLocation
+        dragStart     = NSEvent.mouseLocation
         isDraggingFar = false
         trackedWindow = nil
-        initialFrame = nil
+        initialFrame  = nil
     }
 
     private func onDrag() {
@@ -61,9 +61,6 @@ final class DragSnapManager {
             isDraggingFar = true
             trackedWindow = windowManager.frontmostWindow()
             initialFrame  = trackedWindow.flatMap { windowManager.getFrame($0) }
-            if Settings.enableSnapOverlay, let scr = screen(at: pos) {
-                showOverlay(on: scr, hovered: nil)
-            }
         }
         guard isDraggingFar else { return }
 
@@ -71,19 +68,23 @@ final class DragSnapManager {
         guard newZone != currentZone else { return }
         currentZone = newZone
 
-        if Settings.enableSnapOverlay, let scr = screen(at: pos) {
-            overlayWindow?.update(hovered: newZone, screen: scr)
+        if Settings.enableSnapOverlay {
+            if let zone = newZone, let scr = screen(at: pos) {
+                showIndicator(for: zone, on: scr)
+            } else {
+                hideIndicator()
+            }
         }
     }
 
     private func onUp() {
-        let zone  = currentZone
+        let zone = currentZone
         currentZone = nil
         isDraggingFar = false
-        hideOverlay()
+        hideIndicator()
 
         guard let zone,
-              let win = trackedWindow,
+              let win      = trackedWindow,
               let initFrame = initialFrame,
               let nowFrame  = windowManager.getFrame(win) else {
             trackedWindow = nil; initialFrame = nil; return
@@ -105,9 +106,9 @@ final class DragSnapManager {
         let f = scr.frame
         let e = edgeThreshold
         let c = cornerThreshold
-        let atLeft  = pos.x <= f.minX + e
-        let atRight = pos.x >= f.maxX - e
-        let atTop   = pos.y >= f.maxY - e
+        let atLeft   = pos.x <= f.minX + e
+        let atRight  = pos.x >= f.maxX - e
+        let atTop    = pos.y >= f.maxY - e
         let atLeftC  = pos.x <= f.minX + c
         let atRightC = pos.x >= f.maxX - c
         let atTopC   = pos.y >= f.maxY - c
@@ -127,32 +128,30 @@ final class DragSnapManager {
         NSScreen.screens.first { $0.frame.contains(pos) }
     }
 
-    // MARK: - Overlay
+    // MARK: - Indicator
 
-    private func showOverlay(on screen: NSScreen, hovered: SnapZone?) {
-        let ow = SnapOverlayWindow(screen: screen)
-        ow.update(hovered: hovered, screen: screen)
-        overlayWindow = ow
+    private func showIndicator(for zone: SnapZone, on screen: NSScreen) {
+        let targetFrame = zone.frame(on: screen)
+        if let ind = zoneIndicator {
+            ind.animate(to: targetFrame)
+        } else {
+            zoneIndicator = ZoneIndicatorWindow(frame: targetFrame)
+        }
     }
 
-    private func hideOverlay() {
-        overlayWindow?.close()
-        overlayWindow = nil
+    private func hideIndicator() {
+        zoneIndicator?.fadeOut { [weak self] in self?.zoneIndicator = nil }
     }
 }
 
-// MARK: - SnapOverlayWindow
+// MARK: - ZoneIndicatorWindow
 
 @MainActor
-final class SnapOverlayWindow: NSPanel {
+final class ZoneIndicatorWindow: NSPanel {
 
-    private weak var targetScreen: NSScreen?
-    private var zoneViews: [DragSnapManager.SnapZone: NSView] = [:]
-
-    init(screen: NSScreen) {
-        self.targetScreen = screen
+    init(frame appKitFrame: CGRect) {
         super.init(
-            contentRect: screen.frame,
+            contentRect: appKitFrame,
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -164,67 +163,43 @@ final class SnapOverlayWindow: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hasShadow = false
 
-        let root = NSView(frame: screen.frame)
-        root.wantsLayer = true
-        contentView = root
+        let v = NSView(frame: NSRect(origin: .zero, size: appKitFrame.size))
+        v.wantsLayer = true
+        let layer = v.layer!
+        layer.cornerRadius = 14
+        layer.backgroundColor = NSColor(red: 64/255, green: 207/255, blue: 200/255, alpha: 0.45).cgColor
+        layer.borderColor     = NSColor(red: 10/255,  green: 158/255, blue: 151/255, alpha: 1.0).cgColor
+        layer.borderWidth     = 2.5
+        layer.shadowColor     = NSColor(red: 10/255,  green: 158/255, blue: 151/255, alpha: 0.6).cgColor
+        layer.shadowRadius    = 18
+        layer.shadowOpacity   = 1
+        layer.shadowOffset    = .zero
+        contentView = v
 
-        buildZoneViews(on: screen)
         alphaValue = 0
         orderFront(nil)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.14
+            ctx.duration = 0.15
             animator().alphaValue = 1
         }
     }
 
-    private func buildZoneViews(on screen: NSScreen) {
-        guard let root = contentView else { return }
-        for zone in DragSnapManager.SnapZone.allCases {
-            let zoneFrame = zone.frame(on: screen)
-            let v = NSView(frame: zoneFrame)
-            v.wantsLayer = true
-            styleZone(v, active: false)
-            root.addSubview(v)
-            zoneViews[zone] = v
+    func animate(to newFrame: CGRect) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            animator().setFrame(newFrame, display: true)
         }
+        contentView?.frame = NSRect(origin: .zero, size: newFrame.size)
     }
 
-    func update(hovered: DragSnapManager.SnapZone?, screen: NSScreen) {
-        for (zone, v) in zoneViews {
-            // Update frame in case gap changed
-            v.frame = zone.frame(on: screen)
-            styleZone(v, active: zone == hovered)
-        }
-    }
-
-    private func styleZone(_ v: NSView, active: Bool) {
-        let layer = v.layer!
-        layer.cornerRadius = 12
-
-        if active {
-            // Teal Liquid Glass highlight
-            layer.backgroundColor = NSColor(red: 64/255, green: 207/255, blue: 200/255, alpha: 0.35).cgColor
-            layer.borderColor     = NSColor(red: 10/255,  green: 158/255, blue: 151/255, alpha: 0.9).cgColor
-            layer.borderWidth     = 2.5
-            layer.shadowColor     = NSColor(red: 10/255,  green: 158/255, blue: 151/255, alpha: 0.5).cgColor
-            layer.shadowRadius    = 12
-            layer.shadowOpacity   = 1
-            layer.shadowOffset    = .zero
-        } else {
-            // Subtle inactive zone
-            layer.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
-            layer.borderColor     = NSColor.white.withAlphaComponent(0.25).cgColor
-            layer.borderWidth     = 1.5
-            layer.shadowOpacity   = 0
-        }
-    }
-
-    override func close() {
+    func fadeOut(completion: @escaping () -> Void) {
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.1
+            ctx.duration = 0.12
             animator().alphaValue = 0
-        }, completionHandler: {
-            super.close()
+        }, completionHandler: { [weak self] in
+            self?.close()
+            completion()
         })
     }
 }
