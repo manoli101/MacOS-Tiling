@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         checkAccessibility()
+        checkInputMonitoring()
         hotkeyManager.start()
         trackFirstLaunch()
         // Refresh menu every 3 s so status updates after permission is granted
@@ -47,21 +48,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func buildMenu() -> NSMenu {
-        let axOK  = AXIsProcessTrusted()
-        let tapOK = hotkeyManager.tapIsActive
+        let axOK    = AXIsProcessTrusted()
+        let tapOK   = hotkeyManager.tapIsActive
+        let inputOK = CGPreflightListenEventAccess()
 
         let menu = NSMenu()
         menu.addItem(header("Tyler"))
         menu.addItem(.separator())
-        menu.addItem(info(axOK  ? "✅ Accessibility: granted"          : "❌ Accessibility: NOT granted"))
-        menu.addItem(info(tapOK ? "✅ Event tap: active"               : "⏳ Event tap: waiting for permission…"))
+        menu.addItem(info(axOK    ? "✅ Accessibility: granted"      : "❌ Accessibility: NOT granted"))
+        menu.addItem(info(inputOK ? "✅ Input Monitoring: granted"   : "❌ Input Monitoring: not granted"))
+        menu.addItem(info(tapOK   ? "✅ Event tap: active"           : "⏳ Event tap: waiting for permission…"))
+
         if !axOK {
             menu.addItem(.separator())
-            let fix = NSMenuItem(title: "  → Go to Accessibility Settings",
+            let fix = NSMenuItem(title: "  → Accessibility Settings",
                                  action: #selector(openAccessibilitySettings), keyEquivalent: "")
             fix.target = self
             menu.addItem(fix)
             menu.addItem(info("  Toggle OFF then ON for Tyler"))
+        }
+        if !inputOK {
+            menu.addItem(.separator())
+            let fix = NSMenuItem(title: "  → Input Monitoring Settings",
+                                 action: #selector(openInputMonitoringSettings), keyEquivalent: "")
+            fix.target = self
+            menu.addItem(fix)
+            menu.addItem(info("  Required for keyboard shortcuts"))
         }
         menu.addItem(.separator())
         menu.addItem(header("⌥ + Arrow keys"))
@@ -88,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func openInputMonitoringSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
         NSWorkspace.shared.open(url)
     }
 
@@ -139,7 +156,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Accessibility permission
+    // MARK: - Permissions
+
+    private func checkInputMonitoring() {
+        // Triggers the system dialog if not yet granted. No-op if already granted.
+        // Needed for NSEvent keyboard fallback (used in VMs where CGEventTap misses keys).
+        if !CGPreflightListenEventAccess() {
+            CGRequestListenEventAccess()
+        }
+    }
 
     private func checkAccessibility() {
         let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
