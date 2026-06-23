@@ -25,6 +25,18 @@ Free macOS window tiling manager — Windows 10/11 snap behavior via keyboard sh
 
 ## Install
 
+### Option A — DMG (easiest)
+
+1. Download **Tyler-1.1.dmg** from the badge above
+2. Open the DMG and drag **Tyler.app** to Applications
+3. Open Tyler — macOS will block it (Gatekeeper warning)
+4. Go to **System Settings → Privacy & Security** → scroll down → **"Open Anyway"**
+5. Grant **Accessibility** when prompted → System Settings → Privacy & Security → Accessibility → enable Tyler
+
+> **Why the warning?** Tyler is open source and unsigned by Apple (notarization costs $99/year). You can review all the code in this repo before running it.
+
+### Option B — Build from source (permissions persist across updates)
+
 **Requirements:** macOS 13+, Swift (Xcode Command Line Tools)
 
 ```bash
@@ -33,7 +45,7 @@ cd MacOS-Tiling
 bash Scripts/install.sh
 ```
 
-Then grant Accessibility permission when prompted (System Settings → Privacy & Security → Accessibility → enable Tyler). Permission is permanent — never asked again after this.
+Grant Accessibility permission once — it is remembered permanently across reinstalls.
 
 ## Reinstall / Update
 

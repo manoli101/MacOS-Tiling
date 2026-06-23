@@ -20,6 +20,9 @@ pkill -f "$APP_NAME" 2>/dev/null || true
 rm -rf "$INSTALL_PATH"
 cp -r "$APP_BUNDLE" "$INSTALL_PATH"
 
+echo "▶ Removing quarantine flag (Gatekeeper bypass)..."
+xattr -cr "$INSTALL_PATH" 2>/dev/null || true
+
 echo "▶ Launching..."
 open "$INSTALL_PATH"
 
