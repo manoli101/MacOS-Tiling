@@ -1,26 +1,20 @@
 import AppKit
 
-private let kVKLeftArrow:  CGKeyCode = 123
-private let kVKRightArrow: CGKeyCode = 124
-private let kVKDownArrow:  CGKeyCode = 125
-private let kVKUpArrow:    CGKeyCode = 126
-
 @MainActor
 final class HotkeyManager {
 
     static var instance: HotkeyManager?
 
-    private var eventTap:       CFMachPort?
-    private var runLoopSource:  CFRunLoopSource?
+    private var eventTap:        CFMachPort?
+    private var runLoopSource:   CFRunLoopSource?
     private var fallbackMonitor: Any?
-    private var hidMonitor:     HIDKeyboardMonitor?
+    private var hidMonitor:      HIDKeyboardMonitor?
 
     var tapIsActive: Bool { eventTap != nil }
 
     private let windowManager = WindowManager()
     private lazy var dragSnap = DragSnapManager(windowManager: windowManager)
 
-    // Prevents double-fire when multiple monitors (HID + tap) catch the same event
     private var lastTileTime: Double = 0
     private var lastDownTime: Double = 0
 
@@ -30,10 +24,8 @@ final class HotkeyManager {
         HotkeyManager.instance = self
         _ = dragSnap
 
-        // Layer 1: CGEventTap — primary path on real Macs (consumes event, prevents apps seeing it)
         attemptTapCreation()
 
-        // Layer 2: NSEvent global monitor — secondary path, requires Input Monitoring permission
         fallbackMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             _ = self?.handle(
                 keyCode: CGKeyCode(event.keyCode),
@@ -41,7 +33,6 @@ final class HotkeyManager {
             )
         }
 
-        // Layer 3: IOHIDManager — deepest intercept point for virtualized keyboards
         let hid = HIDKeyboardMonitor()
         hid.onArrow = { [weak self] dir in
             guard let self, !self.textFieldFocused() else { return }
@@ -67,24 +58,62 @@ final class HotkeyManager {
     // MARK: - Event handling
 
     func handle(keyCode: CGKeyCode, flags: CGEventFlags) -> Bool {
-        let required: CGEventFlags  = [.maskAlternate]
-        let forbidden: CGEventFlags = [.maskCommand, .maskShift, .maskControl]
-        guard flags.intersection(required) == required,
-              flags.intersection(forbidden).isEmpty else { return false }
-        guard !textFieldFocused() else { return false }
+        // Resolve active shortcuts
+        let sc = activeShortcuts()
 
-        let direction: Direction
-        switch keyCode {
-        case kVKLeftArrow:  direction = .left
-        case kVKRightArrow: direction = .right
-        case kVKUpArrow:    direction = .up
-        case kVKDownArrow:  direction = .down
-        default:            return false
+        // Check undo first (⌥Z by default)
+        if Settings.enableUndo, let undoSC = sc["undo"] {
+            if matchesShortcut(undoSC, keyCode: keyCode, flags: flags) {
+                return handleUndo()
+            }
         }
 
-        tile(direction: direction)
+        // Arrow shortcuts — require exact modifier match (no forbidden extras)
+        let actionMap: [(String, Direction)] = [
+            ("left", .left), ("right", .right), ("up", .up), ("down", .down)
+        ]
+        for (action, direction) in actionMap {
+            if let sc = sc[action], matchesShortcut(sc, keyCode: keyCode, flags: flags) {
+                guard !textFieldFocused() else { return false }
+                tile(direction: direction)
+                return true
+            }
+        }
+        return false
+    }
+
+    private func matchesShortcut(_ sc: Shortcut, keyCode: CGKeyCode, flags: CGEventFlags) -> Bool {
+        guard UInt16(keyCode) == sc.keyCode else { return false }
+        let required  = CGEventFlags(rawValue: UInt64(sc.modifiers))
+        let forbidden = CGEventFlags(rawValue: UInt64(
+            (NSEvent.ModifierFlags.command.rawValue  |
+             NSEvent.ModifierFlags.option.rawValue   |
+             NSEvent.ModifierFlags.control.rawValue  |
+             NSEvent.ModifierFlags.shift.rawValue)
+        )).subtracting(required)
+        return flags.intersection(required) == required &&
+               flags.intersection(forbidden).isEmpty
+    }
+
+    private func activeShortcuts() -> [String: Shortcut] {
+        var result: [String: Shortcut] = [:]
+        for action in ["left", "right", "up", "down", "undo"] {
+            result[action] = Settings.shortcut(for: action)
+        }
+        return result
+    }
+
+    // MARK: - Undo
+
+    private func handleUndo() -> Bool {
+        guard let window = windowManager.frontmostWindow() else { return false }
+        let winID = windowManager.windowID(window)
+        guard let prevFrame = TilingEngine.shared.undo(windowID: winID) else { return false }
+        windowManager.setFrame(window, prevFrame, bottomAnchored: false)
         return true
     }
+
+    // MARK: - Text field guard
 
     private func textFieldFocused() -> Bool {
         guard let app = NSWorkspace.shared.frontmostApplication else { return false }
@@ -144,7 +173,6 @@ final class HotkeyManager {
             }
             return
         }
-
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -166,8 +194,7 @@ private func tapCallback(
         return Unmanaged.passRetained(event)
     }
     guard type == .keyDown else { return Unmanaged.passRetained(event) }
-
-    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    let keyCode  = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
     let consumed = MainActor.assumeIsolated {
         HotkeyManager.instance?.handle(keyCode: keyCode, flags: event.flags) ?? false
     }
