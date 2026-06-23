@@ -2,6 +2,8 @@
 
 Free macOS window tiling manager — Windows 10/11 snap behavior via keyboard shortcuts and drag-to-snap. Alternative to Raycast Pro / Magnet.
 
+[![Download](https://img.shields.io/badge/Download-Tyler%20v1.1-blue?style=for-the-badge)](https://github.com/manoli101/MacOS-Tiling/releases/latest/download/Tyler-1.1.dmg)
+
 ## Features
 
 - **Keyboard shortcuts** — `⌥ + Arrow` to snap windows
