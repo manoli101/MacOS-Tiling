@@ -1,4 +1,4 @@
-# MacOS Tiling
+# Tyler
 
 Free macOS window tiling manager — Windows 10/11 snap behavior via keyboard shortcuts and drag-to-snap. Alternative to Raycast Pro / Magnet.
 
@@ -17,7 +17,7 @@ Free macOS window tiling manager — Windows 10/11 snap behavior via keyboard sh
 | `⌥ →` | Right half (repeat → next monitor) |
 | `⌥ ←` | Left half (repeat → prev monitor) |
 | `⌥ ↑` | Top half → then maximize |
-| `⌥ ↓` | Move down / double-press to minimize |
+| `⌥ ↓` | Center → restore → minimize |
 | `⌥ ↑ + ⌥ →` | Top-right quarter |
 | `⌥ ↑ + ⌥ ←` | Top-left quarter |
 
@@ -31,7 +31,7 @@ cd MacOS-Tiling
 bash Scripts/install.sh
 ```
 
-Then grant Accessibility permission when prompted (System Settings → Privacy & Security → Accessibility → enable MacOS Tiling). Permission is permanent — never asked again after this.
+Then grant Accessibility permission when prompted (System Settings → Privacy & Security → Accessibility → enable Tyler). Permission is permanent — never asked again after this.
 
 ## Reinstall / Update
 
@@ -46,3 +46,7 @@ No need to re-grant permissions on the same Mac.
 ```bash
 bash Scripts/uninstall.sh
 ```
+
+## Support
+
+If Tyler saves you time, consider [buying me a coffee ☕](https://github.com/sponsors/manoli101)

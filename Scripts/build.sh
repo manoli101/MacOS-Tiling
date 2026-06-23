@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
-APP_NAME="MacOSTiling"
+APP_NAME="Tyler"
 APP_BUNDLE="$ROOT/$APP_NAME.app"
 
 echo "▶ Building $APP_NAME (release)..."
@@ -17,8 +17,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp "$ROOT/.build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
 
 # Include icon if it exists
-if [ -f "$ROOT/MacOSTiling.icns" ]; then
-    cp "$ROOT/MacOSTiling.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+if [ -f "$ROOT/Tyler.icns" ]; then
+    cp "$ROOT/Tyler.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
@@ -28,17 +28,17 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.user.macos-tiling</string>
+    <string>com.user.tyler</string>
     <key>CFBundleName</key>
-    <string>MacOS Tiling</string>
+    <string>Tyler</string>
     <key>CFBundleDisplayName</key>
-    <string>MacOS Tiling</string>
+    <string>Tyler</string>
     <key>CFBundleExecutable</key>
-    <string>MacOSTiling</string>
+    <string>Tyler</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.1</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSUIElement</key>
@@ -50,7 +50,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>MacOS Tiling needs Accessibility access to move and resize application windows.</string>
+    <string>Tyler needs Accessibility access to move and resize application windows.</string>
 </dict>
 </plist>
 PLIST

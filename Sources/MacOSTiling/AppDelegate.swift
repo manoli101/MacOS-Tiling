@@ -7,10 +7,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let hotkeyManager = HotkeyManager()
 
+    private let firstLaunchKey   = "firstLaunchDate"
+    private let reminderShownKey = "donationReminderShown"
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         checkAccessibility()
         hotkeyManager.start()
+        trackFirstLaunch()
         // Refresh menu every 3 s so status updates after permission is granted
         Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildMenu() }
@@ -26,8 +30,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem?.button else { return }
-        button.title = "⊞"
-        button.toolTip = "MacOS Tiling"
+        if let img = NSImage(systemSymbolName: "rectangle.split.2x2",
+                             accessibilityDescription: "Tyler") {
+            img.isTemplate = true   // auto-colors for light/dark mode
+            button.image = img
+        } else {
+            button.title = "⊞"     // fallback for older macOS
+        }
+        button.toolTip = "Tyler"
         statusItem?.menu = buildMenu()
     }
 
@@ -40,17 +50,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tapOK = hotkeyManager.tapIsActive
 
         let menu = NSMenu()
-        menu.addItem(header("MacOS Tiling"))
+        menu.addItem(header("Tyler"))
         menu.addItem(.separator())
-        menu.addItem(info(axOK  ? "✅ Accessibility: granted"      : "❌ Accessibility: NOT granted"))
-        menu.addItem(info(tapOK ? "✅ Event tap: active"           : "⏳ Event tap: waiting for permission…"))
+        menu.addItem(info(axOK  ? "✅ Accessibility: granted"          : "❌ Accessibility: NOT granted"))
+        menu.addItem(info(tapOK ? "✅ Event tap: active"               : "⏳ Event tap: waiting for permission…"))
         if !axOK {
             menu.addItem(.separator())
             let fix = NSMenuItem(title: "  → Go to Accessibility Settings",
                                  action: #selector(openAccessibilitySettings), keyEquivalent: "")
             fix.target = self
             menu.addItem(fix)
-            menu.addItem(info("  Toggle OFF then ON for MacOSTiling"))
+            menu.addItem(info("  Toggle OFF then ON for Tyler"))
         }
         menu.addItem(.separator())
         menu.addItem(header("⌥ + Arrow keys"))
@@ -59,25 +69,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(info("↑   Top half → maximize"))
         menu.addItem(info("↓   Restore → minimize"))
         menu.addItem(.separator())
+        let coffee = NSMenuItem(title: "☕  Buy me a coffee",
+                                action: #selector(openSponsors), keyEquivalent: "")
+        coffee.target = self
+        menu.addItem(coffee)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
     }
+
+    // MARK: - Actions
 
     @objc private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
     }
 
-    private func header(_ text: String) -> NSMenuItem {
-        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        return item
+    @objc private func openSponsors() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/manoli101")!)
     }
 
-    private func info(_ text: String) -> NSMenuItem {
-        let item = NSMenuItem(title: "  \(text)", action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        return item
+    // MARK: - Donation reminder (one-time, after 7 days of use)
+
+    private func trackFirstLaunch() {
+        let d = UserDefaults.standard
+        if d.object(forKey: firstLaunchKey) == nil {
+            d.set(Date().timeIntervalSince1970, forKey: firstLaunchKey)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.showReminderIfNeeded()
+        }
+    }
+
+    private func showReminderIfNeeded() {
+        let d = UserDefaults.standard
+        guard !d.bool(forKey: reminderShownKey),
+              let ts = d.object(forKey: firstLaunchKey) as? Double,
+              (Date().timeIntervalSince1970 - ts) / 86_400 >= 7 else { return }
+
+        d.set(true, forKey: reminderShownKey)
+
+        let alert = NSAlert()
+        alert.messageText = "¿Te está siendo útil Tyler?"
+        alert.informativeText = "Si la app te ahorra tiempo, considera invitarme un café — me ayuda a seguir mejorándola ☕"
+        alert.addButton(withTitle: "Claro que sí 🎉")
+        alert.addButton(withTitle: "Ahora no")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openSponsors()
+        }
     }
 
     // MARK: - Accessibility permission
@@ -95,10 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission Needed"
         alert.informativeText = """
-            MacOS Tiling needs Accessibility access to move and resize windows.
+            Tyler needs Accessibility access to move and resize windows.
 
             Go to:  System Settings → Privacy & Security → Accessibility
-            Then toggle MacOSTiling OFF then ON.
+            Then toggle Tyler OFF then ON.
 
             The app will activate automatically — no restart needed.
             """
@@ -109,5 +147,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if alert.runModal() == .alertFirstButtonReturn {
             openAccessibilitySettings()
         }
+    }
+
+    // MARK: - Helpers
+
+    private func header(_ text: String) -> NSMenuItem {
+        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    private func info(_ text: String) -> NSMenuItem {
+        let item = NSMenuItem(title: "  \(text)", action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
     }
 }

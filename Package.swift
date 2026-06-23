@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacOSTiling",
+    name: "Tyler",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "MacOSTiling",
+            name: "Tyler",
             path: "Sources/MacOSTiling",
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"])

@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
-APP_NAME="MacOSTiling"
+APP_NAME="Tyler"
 APP_BUNDLE="$ROOT/$APP_NAME.app"
 INSTALL_PATH="/Applications/$APP_NAME.app"
 
@@ -24,11 +24,11 @@ echo "▶ Launching..."
 open "$INSTALL_PATH"
 
 echo ""
-echo "✅ MacOS Tiling installed and running."
+echo "✅ Tyler installed and running."
 echo ""
 echo "⚠️  First launch: macOS will ask for Accessibility permission."
 echo "   → System Settings → Privacy & Security → Accessibility"
-echo "   → Enable 'MacOS Tiling'"
+echo "   → Enable 'Tyler'"
 echo "   → Quit and reopen the app"
 echo ""
 echo "Shortcuts:  ⌥ (Option) + Arrow keys"
