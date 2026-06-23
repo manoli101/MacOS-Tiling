@@ -7,7 +7,11 @@ final class WindowManager {
     // MARK: - Window retrieval
 
     func frontmostWindow() -> AXUIElement? {
-        AXUIElement.systemWide.focusedApp?.focusedWindow
+        // NSWorkspace is always accurate for the frontmost app; avoids AX system-wide
+        // kAXFocusedApplicationAttribute failures with Chrome and Electron apps.
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return nil }
+        let axApp = AXUIElementCreateApplication(pid)
+        return axApp.focusedWindow ?? axApp.mainWindow
     }
 
     func windowID(_ window: AXUIElement) -> String {

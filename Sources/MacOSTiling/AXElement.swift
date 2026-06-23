@@ -21,8 +21,9 @@ extension AXUIElement {
 
     // MARK: - Navigation
 
-    var focusedApp: AXUIElement? { element(kAXFocusedApplicationAttribute) }
+    var focusedApp: AXUIElement?  { element(kAXFocusedApplicationAttribute) }
     var focusedWindow: AXUIElement? { element(kAXFocusedWindowAttribute) }
+    var mainWindow: AXUIElement?    { element(kAXMainWindowAttribute) }
     var allWindows: [AXUIElement]? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &ref) == .success else { return nil }
