@@ -1,6 +1,5 @@
 import AppKit
 
-// Virtual key codes for arrow keys (stable across keyboard layouts)
 private let kVKLeftArrow:  CGKeyCode = 123
 private let kVKRightArrow: CGKeyCode = 124
 private let kVKDownArrow:  CGKeyCode = 125
@@ -9,85 +8,52 @@ private let kVKUpArrow:    CGKeyCode = 126
 @MainActor
 final class HotkeyManager {
 
-    // Bridging reference used by the C callback (must be set before tapCreate)
     static var instance: HotkeyManager?
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var eventTap:       CFMachPort?
+    private var runLoopSource:  CFRunLoopSource?
+    private var fallbackMonitor: Any?
+    private var hidMonitor:     HIDKeyboardMonitor?
 
     var tapIsActive: Bool { eventTap != nil }
 
     private let windowManager = WindowManager()
-    private lazy var dragSnap  = DragSnapManager(windowManager: windowManager)
+    private lazy var dragSnap = DragSnapManager(windowManager: windowManager)
 
-    // NSEvent fallback — catches keys in VMs where CGEventTap misses them (requires Input Monitoring)
-    private var keyFallbackMonitor: Any?
-    // HID fallback — lowest level, works in UTM/QEMU VMs via virtio-input driver
-    private var hidMonitor: HIDKeyboardMonitor?
-
-    // Dedup: prevents double-fire when HID + tap/NSEvent both catch the same keypress
+    // Prevents double-fire when multiple monitors (HID + tap) catch the same event
     private var lastTileTime: Double = 0
-    // Double-press Down detection for minimize
     private var lastDownTime: Double = 0
+
+    // MARK: - Lifecycle
 
     func start() {
         HotkeyManager.instance = self
         _ = dragSnap
-        startKeyFallbackMonitor()
-        startHIDMonitor()
+
+        // Layer 1: CGEventTap — primary path on real Macs (consumes event, prevents apps seeing it)
         attemptTapCreation()
-    }
 
-    private func startKeyFallbackMonitor() {
-        keyFallbackMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            let keyCode = CGKeyCode(event.keyCode)
-            let flags = CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue))
-            _ = self?.handle(keyCode: keyCode, flags: flags)
-        }
-    }
-
-    private func startHIDMonitor() {
-        let m = HIDKeyboardMonitor()
-        m.onArrow = { [weak self] direction in self?.tile(direction: direction) }
-        m.start()
-        hidMonitor = m
-    }
-
-    private func attemptTapCreation() {
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: tapCallback,
-            userInfo: nil
-        ) else {
-            // Retry every 2 s until permission is granted and tap succeeds
-            Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-                MainActor.assumeIsolated { self?.attemptTapCreation() }
-            }
-            return
+        // Layer 2: NSEvent global monitor — secondary path, requires Input Monitoring permission
+        fallbackMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            _ = self?.handle(
+                keyCode: CGKeyCode(event.keyCode),
+                flags: CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue))
+            )
         }
 
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-
-        self.eventTap = tap
-        self.runLoopSource = source
-        NSLog("[MacOSTiling] Event tap active")
+        // Layer 3: IOHIDManager — deepest intercept point for virtualized keyboards
+        let hid = HIDKeyboardMonitor()
+        hid.onArrow = { [weak self] dir in self?.tile(direction: dir) }
+        hid.start()
+        hidMonitor = hid
     }
 
     func stop() {
         if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let src = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes) }
-        if let monitor = keyFallbackMonitor { NSEvent.removeMonitor(monitor) }
+        if let m = fallbackMonitor { NSEvent.removeMonitor(m) }
         hidMonitor?.stop()
-        eventTap = nil
-        runLoopSource = nil
-        keyFallbackMonitor = nil
-        hidMonitor = nil
+        eventTap = nil; runLoopSource = nil; fallbackMonitor = nil; hidMonitor = nil
         HotkeyManager.instance = nil
     }
 
@@ -95,10 +61,10 @@ final class HotkeyManager {
         if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
     }
 
-    // Returns true if the event was consumed (shortcut matched)
+    // MARK: - Event handling
+
     func handle(keyCode: CGKeyCode, flags: CGEventFlags) -> Bool {
-        // Require exactly Option, no other modifiers
-        let required: CGEventFlags = [.maskAlternate]
+        let required: CGEventFlags  = [.maskAlternate]
         let forbidden: CGEventFlags = [.maskCommand, .maskShift, .maskControl]
         guard flags.intersection(required) == required,
               flags.intersection(forbidden).isEmpty else { return false }
@@ -116,49 +82,66 @@ final class HotkeyManager {
         return true
     }
 
-    // MARK: - Tiling action
+    // MARK: - Tiling
 
     private func tile(direction: Direction) {
-        // Deduplicate: HID + tap/NSEvent can both fire for the same keypress within microseconds
         let now = CACurrentMediaTime()
         guard now - lastTileTime > 0.05 else { return }
         lastTileTime = now
 
         guard let window = windowManager.frontmostWindow(),
-              let currentFrame = windowManager.getFrame(window) else {
-            NSLog("[Tyler] tile: could not get frontmost window or frame")
-            return
-        }
+              let frame  = windowManager.getFrame(window) else { return }
 
-        let winID = windowManager.windowID(window)
+        let winID  = windowManager.windowID(window)
         let engine = TilingEngine.shared
-        let state  = engine.stateFor(windowID: winID)
 
-        // Down: double-press from unsnapped states minimizes; single press centers or moves down
         if direction == .down {
-            let now = CACurrentMediaTime()
             let isDouble = now - lastDownTime < 0.4
             lastDownTime = now
-            switch state {
-            case .floating, .centered:
-                if isDouble { windowManager.minimize(window); return }
-            default:
-                break
+            switch engine.stateFor(windowID: winID) {
+            case .floating, .centered where isDouble:
+                windowManager.minimize(window); return
+            default: break
             }
         }
 
-        let targetFrame = engine.handle(direction: direction, windowID: winID, currentFrame: currentFrame)
+        let target   = engine.handle(direction: direction, windowID: winID, currentFrame: frame)
         let newState = engine.stateFor(windowID: winID)
         let bottomAnchored: Bool
         switch newState {
         case .bottomLeft, .bottomRight: bottomAnchored = true
-        default: bottomAnchored = false
+        default:                        bottomAnchored = false
         }
-        windowManager.setFrame(window, targetFrame, bottomAnchored: bottomAnchored)
+        windowManager.setFrame(window, target, bottomAnchored: bottomAnchored)
+    }
+
+    // MARK: - CGEventTap
+
+    private func attemptTapCreation() {
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: tapCallback,
+            userInfo: nil
+        ) else {
+            Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.attemptTapCreation() }
+            }
+            return
+        }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        eventTap = tap
+        runLoopSource = source
     }
 }
 
-// MARK: - C callback (runs on main run loop — safe to use MainActor.assumeIsolated)
+// MARK: - C callback
 
 private func tapCallback(
     proxy: CGEventTapProxy,
@@ -166,20 +149,15 @@ private func tapCallback(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
         MainActor.assumeIsolated { HotkeyManager.instance?.reenable() }
         return Unmanaged.passRetained(event)
     }
-
     guard type == .keyDown else { return Unmanaged.passRetained(event) }
 
     let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-    let flags = event.flags
-
     let consumed = MainActor.assumeIsolated {
-        HotkeyManager.instance?.handle(keyCode: keyCode, flags: flags) ?? false
+        HotkeyManager.instance?.handle(keyCode: keyCode, flags: event.flags) ?? false
     }
-
     return consumed ? nil : Unmanaged.passRetained(event)
 }

@@ -11,14 +11,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let firstLaunchKey   = "firstLaunchDate"
     private let reminderShownKey = "donationReminderShown"
 
+    // MARK: - App lifecycle
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
-        checkAccessibility()
-        checkInputMonitoring()
+        requestPermissions()
         hotkeyManager.start()
         trackFirstLaunch()
-        // Refresh menu every 3 s so status updates after permission is granted
-        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildMenu() }
         }
     }
@@ -32,12 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem?.button else { return }
-        if let img = NSImage(systemSymbolName: "rectangle.split.2x2",
-                             accessibilityDescription: "Tyler") {
-            img.isTemplate = true   // auto-colors for light/dark mode
+        if let img = NSImage(systemSymbolName: "rectangle.split.2x2", accessibilityDescription: "Tyler") {
+            img.isTemplate = true
             button.image = img
         } else {
-            button.title = "⊞"     // fallback for older macOS
+            button.title = "⊞"
         }
         button.toolTip = "Tyler"
         statusItem?.menu = buildMenu()
@@ -49,49 +48,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() -> NSMenu {
         let axOK    = AXIsProcessTrusted()
-        let tapOK   = hotkeyManager.tapIsActive
         let inputOK = CGPreflightListenEventAccess()
+        let tapOK   = hotkeyManager.tapIsActive
 
         let menu = NSMenu()
         menu.addItem(header("Tyler"))
         menu.addItem(.separator())
-        menu.addItem(info(axOK    ? "✅ Accessibility: granted"      : "❌ Accessibility: NOT granted"))
-        menu.addItem(info(inputOK ? "✅ Input Monitoring: granted"   : "❌ Input Monitoring: not granted"))
-        menu.addItem(info(tapOK   ? "✅ Event tap: active"           : "⏳ Event tap: waiting for permission…"))
+        menu.addItem(status(axOK,    "Accessibility"))
+        menu.addItem(status(inputOK, "Input Monitoring"))
+        menu.addItem(status(tapOK,   "Event tap"))
 
         if !axOK {
             menu.addItem(.separator())
-            let fix = NSMenuItem(title: "  → Accessibility Settings",
-                                 action: #selector(openAccessibilitySettings), keyEquivalent: "")
-            fix.target = self
-            menu.addItem(fix)
-            menu.addItem(info("  Toggle OFF then ON for Tyler"))
+            menu.addItem(link("→ Accessibility Settings", #selector(openAccessibilitySettings)))
+            menu.addItem(info("Toggle Tyler OFF then ON"))
         }
         if !inputOK {
             menu.addItem(.separator())
-            let fix = NSMenuItem(title: "  → Input Monitoring Settings",
-                                 action: #selector(openInputMonitoringSettings), keyEquivalent: "")
-            fix.target = self
-            menu.addItem(fix)
-            menu.addItem(info("  Required for keyboard shortcuts"))
+            menu.addItem(link("→ Input Monitoring Settings", #selector(openInputMonitoringSettings)))
         }
+
         menu.addItem(.separator())
         menu.addItem(header("⌥ + Arrow keys"))
-        menu.addItem(info("→   Right half  → next monitor"))
-        menu.addItem(info("←   Left half   → prev monitor"))
-        menu.addItem(info("↑   Top half → maximize"))
-        menu.addItem(info("↓   Restore → minimize"))
+        menu.addItem(info("→   Right half  →  next monitor"))
+        menu.addItem(info("←   Left half   →  prev monitor"))
+        menu.addItem(info("↑   Top half  →  maximize"))
+        menu.addItem(info("↓   Center  →  restore  →  minimize"))
+
         menu.addItem(.separator())
-        let launchAtLogin = NSMenuItem(title: "Launch at Login",
-                                       action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        launchAtLogin.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
-        launchAtLogin.target = self
-        menu.addItem(launchAtLogin)
+        let loginItem = NSMenuItem(title: "Launch at Login",
+                                   action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        loginItem.state  = SMAppService.mainApp.status == .enabled ? .on : .off
+        loginItem.target = self
+        menu.addItem(loginItem)
+
         menu.addItem(.separator())
-        let coffee = NSMenuItem(title: "☕  Buy me a coffee",
-                                action: #selector(openSponsors), keyEquivalent: "")
-        coffee.target = self
-        menu.addItem(coffee)
+        menu.addItem(link("☕  Buy me a coffee", #selector(openSponsors)))
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
     }
@@ -99,41 +91,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     @objc private func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
+        open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
     }
 
     @objc private func openInputMonitoringSettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
-        NSWorkspace.shared.open(url)
+        open("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     }
 
     @objc private func toggleLaunchAtLogin() {
-        let service = SMAppService.mainApp
+        let svc = SMAppService.mainApp
         do {
-            if service.status == .enabled {
-                try service.unregister()
-            } else {
-                try service.register()
-            }
+            try svc.status == .enabled ? svc.unregister() : svc.register()
         } catch {
-            NSLog("[Tyler] Launch at login toggle failed: \(error)")
+            NSLog("[Tyler] Launch at Login toggle failed: %@", error.localizedDescription)
         }
         rebuildMenu()
     }
 
     @objc private func openSponsors() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/manoli101")!)
+        open("https://github.com/sponsors/manoli101")
     }
 
-    // MARK: - Donation reminder (one-time, after 7 days of use)
+    // MARK: - Permissions
+
+    private func requestPermissions() {
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        if !AXIsProcessTrustedWithOptions(opts) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.showAccessibilityAlert()
+            }
+        }
+        if !CGPreflightListenEventAccess() { CGRequestListenEventAccess() }
+    }
+
+    private func showAccessibilityAlert() {
+        let alert = NSAlert()
+        alert.messageText     = "Accessibility Permission Needed"
+        alert.informativeText = "Tyler needs Accessibility to move and resize windows.\n\nGo to System Settings → Privacy & Security → Accessibility, then toggle Tyler OFF then ON."
+        alert.alertStyle      = .warning
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn { openAccessibilitySettings() }
+    }
+
+    // MARK: - Donation reminder (once, after 7 days of use)
 
     private func trackFirstLaunch() {
         let d = UserDefaults.standard
         if d.object(forKey: firstLaunchKey) == nil {
             d.set(Date().timeIntervalSince1970, forKey: firstLaunchKey)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.showReminderIfNeeded()
         }
     }
@@ -142,60 +150,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let d = UserDefaults.standard
         guard !d.bool(forKey: reminderShownKey),
               let ts = d.object(forKey: firstLaunchKey) as? Double,
-              (Date().timeIntervalSince1970 - ts) / 86_400 >= 7 else { return }
-
+              Date().timeIntervalSince1970 - ts >= 7 * 86_400 else { return }
         d.set(true, forKey: reminderShownKey)
 
         let alert = NSAlert()
-        alert.messageText = "¿Te está siendo útil Tyler?"
+        alert.messageText     = "¿Te está siendo útil Tyler?"
         alert.informativeText = "Si la app te ahorra tiempo, considera invitarme un café — me ayuda a seguir mejorándola ☕"
         alert.addButton(withTitle: "Claro que sí 🎉")
         alert.addButton(withTitle: "Ahora no")
-        if alert.runModal() == .alertFirstButtonReturn {
-            openSponsors()
-        }
+        if alert.runModal() == .alertFirstButtonReturn { openSponsors() }
     }
 
-    // MARK: - Permissions
-
-    private func checkInputMonitoring() {
-        // Triggers the system dialog if not yet granted. No-op if already granted.
-        // Needed for NSEvent keyboard fallback (used in VMs where CGEventTap misses keys).
-        if !CGPreflightListenEventAccess() {
-            CGRequestListenEventAccess()
-        }
-    }
-
-    private func checkAccessibility() {
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        guard !AXIsProcessTrustedWithOptions(opts) else { return }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.showAccessibilityAlert()
-        }
-    }
-
-    private func showAccessibilityAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Permission Needed"
-        alert.informativeText = """
-            Tyler needs Accessibility access to move and resize windows.
-
-            Go to:  System Settings → Privacy & Security → Accessibility
-            Then toggle Tyler OFF then ON.
-
-            The app will activate automatically — no restart needed.
-            """
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Later")
-        alert.alertStyle = .warning
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            openAccessibilitySettings()
-        }
-    }
-
-    // MARK: - Helpers
+    // MARK: - Menu helpers
 
     private func header(_ text: String) -> NSMenuItem {
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
@@ -207,5 +173,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSMenuItem(title: "  \(text)", action: nil, keyEquivalent: "")
         item.isEnabled = false
         return item
+    }
+
+    private func status(_ ok: Bool, _ label: String) -> NSMenuItem {
+        info((ok ? "✅" : "❌") + " \(label)")
+    }
+
+    private func link(_ title: String, _ action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: "  \(title)", action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    private func open(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
     }
 }
