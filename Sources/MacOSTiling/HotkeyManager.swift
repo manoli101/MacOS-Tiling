@@ -20,17 +20,21 @@ final class HotkeyManager {
     private let windowManager = WindowManager()
     private lazy var dragSnap  = DragSnapManager(windowManager: windowManager)
 
-    // NSEvent fallback monitor — fires in VMs where CGEventTap misses keyboard events.
-    // On a real Mac the tap consumes ⌥+Arrow first, so this never double-fires.
+    // NSEvent fallback — catches keys in VMs where CGEventTap misses them (requires Input Monitoring)
     private var keyFallbackMonitor: Any?
+    // HID fallback — lowest level, works in UTM/QEMU VMs via virtio-input driver
+    private var hidMonitor: HIDKeyboardMonitor?
 
-    // Double-press Down detection for minimize (CACurrentMediaTime is monotonic and cheaper than Date)
+    // Dedup: prevents double-fire when HID + tap/NSEvent both catch the same keypress
+    private var lastTileTime: Double = 0
+    // Double-press Down detection for minimize
     private var lastDownTime: Double = 0
 
     func start() {
         HotkeyManager.instance = self
-        _ = dragSnap  // Initialize drag-snap monitor immediately
+        _ = dragSnap
         startKeyFallbackMonitor()
+        startHIDMonitor()
         attemptTapCreation()
     }
 
@@ -40,6 +44,13 @@ final class HotkeyManager {
             let flags = CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue))
             _ = self?.handle(keyCode: keyCode, flags: flags)
         }
+    }
+
+    private func startHIDMonitor() {
+        let m = HIDKeyboardMonitor()
+        m.onArrow = { [weak self] direction in self?.tile(direction: direction) }
+        m.start()
+        hidMonitor = m
     }
 
     private func attemptTapCreation() {
@@ -72,9 +83,11 @@ final class HotkeyManager {
         if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let src = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes) }
         if let monitor = keyFallbackMonitor { NSEvent.removeMonitor(monitor) }
+        hidMonitor?.stop()
         eventTap = nil
         runLoopSource = nil
         keyFallbackMonitor = nil
+        hidMonitor = nil
         HotkeyManager.instance = nil
     }
 
@@ -106,6 +119,11 @@ final class HotkeyManager {
     // MARK: - Tiling action
 
     private func tile(direction: Direction) {
+        // Deduplicate: HID + tap/NSEvent can both fire for the same keypress within microseconds
+        let now = CACurrentMediaTime()
+        guard now - lastTileTime > 0.05 else { return }
+        lastTileTime = now
+
         guard let window = windowManager.frontmostWindow(),
               let currentFrame = windowManager.getFrame(window) else {
             NSLog("[Tyler] tile: could not get frontmost window or frame")

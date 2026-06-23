@@ -10,7 +10,8 @@ let package = Package(
             path: "Sources/MacOSTiling",
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"])
-            ]
+            ],
+            linkerSettings: [.linkedFramework("IOKit")]
         )
     ]
 )
