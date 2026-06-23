@@ -21,9 +21,11 @@ extension AXUIElement {
 
     // MARK: - Navigation
 
-    var focusedApp: AXUIElement?  { element(kAXFocusedApplicationAttribute) }
-    var focusedWindow: AXUIElement? { element(kAXFocusedWindowAttribute) }
-    var mainWindow: AXUIElement?    { element(kAXMainWindowAttribute) }
+    var focusedApp: AXUIElement?     { element(kAXFocusedApplicationAttribute) }
+    var focusedWindow: AXUIElement?  { element(kAXFocusedWindowAttribute) }
+    var mainWindow: AXUIElement?     { element(kAXMainWindowAttribute) }
+    var focusedUIElement: AXUIElement? { element(kAXFocusedUIElementAttribute) }
+    var role: String?                { string(kAXRoleAttribute) }
     var allWindows: [AXUIElement]? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, kAXWindowsAttribute as CFString, &ref) == .success else { return nil }

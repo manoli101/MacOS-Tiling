@@ -21,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.rebuildMenu() }
         }
+        NotificationCenter.default.addObserver(forName: .settingsChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rebuildMenu() }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -54,21 +57,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(header("Tyler"))
         menu.addItem(.separator())
-        menu.addItem(status(axOK,    "Accessibility"))
-        menu.addItem(status(inputOK, "Input Monitoring"))
-        menu.addItem(status(tapOK,   "Event tap"))
 
-        if !axOK {
+        if Settings.showStatusIndicators {
+            menu.addItem(status(axOK,    "Accessibility"))
+            menu.addItem(status(inputOK, "Input Monitoring"))
+            menu.addItem(status(tapOK,   "Event tap"))
+
+            if !axOK {
+                menu.addItem(.separator())
+                menu.addItem(link("→ Accessibility Settings", #selector(openAccessibilitySettings)))
+                menu.addItem(info("Toggle Tyler OFF then ON"))
+            }
+            if !inputOK {
+                menu.addItem(.separator())
+                menu.addItem(link("→ Input Monitoring Settings", #selector(openInputMonitoringSettings)))
+            }
             menu.addItem(.separator())
-            menu.addItem(link("→ Accessibility Settings", #selector(openAccessibilitySettings)))
-            menu.addItem(info("Toggle Tyler OFF then ON"))
-        }
-        if !inputOK {
-            menu.addItem(.separator())
-            menu.addItem(link("→ Input Monitoring Settings", #selector(openInputMonitoringSettings)))
         }
 
-        menu.addItem(.separator())
         menu.addItem(header("⌥ + Arrow keys"))
         menu.addItem(info("→   Right half  →  next monitor"))
         menu.addItem(info("←   Left half   →  prev monitor"))
@@ -76,12 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(info("↓   Center  →  restore  →  minimize"))
 
         menu.addItem(.separator())
-        let loginItem = NSMenuItem(title: "Launch at Login",
-                                   action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.state  = SMAppService.mainApp.status == .enabled ? .on : .off
-        loginItem.target = self
-        menu.addItem(loginItem)
-
+        menu.addItem(link("Preferences…", #selector(openPreferences)))
+        menu.items.last?.keyEquivalent = ","
         menu.addItem(.separator())
         menu.addItem(link("☕  Buy me a coffee", #selector(openSponsors)))
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -90,22 +92,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
+    @objc private func openPreferences() {
+        PreferencesWindowController.shared.show()
+    }
+
     @objc private func openAccessibilitySettings() {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
     }
 
     @objc private func openInputMonitoringSettings() {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
-    }
-
-    @objc private func toggleLaunchAtLogin() {
-        let svc = SMAppService.mainApp
-        do {
-            try svc.status == .enabled ? svc.unregister() : svc.register()
-        } catch {
-            NSLog("[Tyler] Launch at Login toggle failed: %@", error.localizedDescription)
-        }
-        rebuildMenu()
     }
 
     @objc private func openSponsors() {

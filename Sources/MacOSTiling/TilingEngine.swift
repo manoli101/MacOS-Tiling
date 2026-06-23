@@ -135,54 +135,72 @@ final class TilingEngine {
         case .topRight(let s):      return topRight(screens[s])
         case .bottomLeft(let s):    return bottomLeft(screens[s])
         case .bottomRight(let s):   return bottomRight(screens[s])
-        case .maximized(let s):     return screens[s].visibleFrame
+        case .maximized(let s):
+            let g = CGFloat(Settings.windowGap)
+            return g > 0 ? screens[s].visibleFrame.insetBy(dx: g, dy: g) : screens[s].visibleFrame
         }
     }
 
     private func centered(_ screen: NSScreen) -> CGRect {
-        let sf = screen.frame        // full screen — for true horizontal center
-        let vf = screen.visibleFrame // visible area — for height and vertical bounds
+        let sf = screen.frame
+        let vf = screen.visibleFrame
         let w = sf.width  * 0.65
         let h = vf.height * 0.70
-        // Center horizontally on the full screen; vertically within the visible frame
         let x = sf.midX - w / 2
-        let y = vf.minY + (vf.height - h) * 0.45  // slightly above true center
+        let y = vf.minY + (vf.height - h) * 0.45
         return CGRect(x: x, y: y, width: w, height: h)
     }
 
+    // Gap model: outer edges get g, shared inner edges get g/2 each side → gap between two tiles = g.
+    // e.g. leftHalf right edge = midX - g/2, rightHalf left edge = midX + g/2 → gap = g. ✓
+
     private func topHalf(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.minX, y: f.midY, width: f.width, height: f.height / 2)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.minX + g, y: f.midY + g/2,
+                      width: f.width - g*2, height: f.height/2 - g*1.5)
     }
 
     private func leftHalf(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.minX, y: f.minY, width: f.width / 2, height: f.height)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.minX + g, y: f.minY + g,
+                      width: f.width/2 - g*1.5, height: f.height - g*2)
     }
 
     private func rightHalf(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.midX, y: f.minY, width: f.width / 2, height: f.height)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.midX + g/2, y: f.minY + g,
+                      width: f.width/2 - g*1.5, height: f.height - g*2)
     }
 
     private func topLeft(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.minX, y: f.midY, width: f.width / 2, height: f.height / 2)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.minX + g, y: f.midY + g/2,
+                      width: f.width/2 - g*1.5, height: f.height/2 - g*1.5)
     }
 
     private func topRight(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.midX, y: f.midY, width: f.width / 2, height: f.height / 2)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.midX + g/2, y: f.midY + g/2,
+                      width: f.width/2 - g*1.5, height: f.height/2 - g*1.5)
     }
 
     private func bottomLeft(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.minX, y: f.minY, width: f.width / 2, height: f.height / 2)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.minX + g, y: f.minY + g,
+                      width: f.width/2 - g*1.5, height: f.height/2 - g*1.5)
     }
 
     private func bottomRight(_ screen: NSScreen) -> CGRect {
         let f = screen.visibleFrame
-        return CGRect(x: f.midX, y: f.minY, width: f.width / 2, height: f.height / 2)
+        let g = CGFloat(Settings.windowGap)
+        return CGRect(x: f.midX + g/2, y: f.minY + g,
+                      width: f.width/2 - g*1.5, height: f.height/2 - g*1.5)
     }
 
     // MARK: - Screen helpers

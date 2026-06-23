@@ -5,6 +5,12 @@ import Foundation
 private let kHIDPageKeyboard: UInt32 = 0x07
 private let kHIDUsageOptL:    UInt32 = 0xE2   // Left Option/Alt
 private let kHIDUsageOptR:    UInt32 = 0xE6   // Right Option/Alt
+private let kHIDUsageShiftL:  UInt32 = 0xE1   // Left Shift
+private let kHIDUsageShiftR:  UInt32 = 0xE5   // Right Shift
+private let kHIDUsageCtrlL:   UInt32 = 0xE0   // Left Control
+private let kHIDUsageCtrlR:   UInt32 = 0xE4   // Right Control
+private let kHIDUsageCmdL:    UInt32 = 0xE3   // Left Command (GUI)
+private let kHIDUsageCmdR:    UInt32 = 0xE7   // Right Command (GUI)
 private let kHIDUsageArrR:    UInt32 = 0x4F
 private let kHIDUsageArrL:    UInt32 = 0x50
 private let kHIDUsageArrD:    UInt32 = 0x51
@@ -19,7 +25,12 @@ final class HIDKeyboardMonitor {
     var onArrow: ((Direction) -> Void)?
 
     private var manager: IOHIDManager?
-    private var optionDown = false
+    private var optionDown   = false
+    private var shiftDown    = false
+    private var controlDown  = false
+    private var commandDown  = false
+
+    private var forbiddenDown: Bool { shiftDown || controlDown || commandDown }
 
     func start() {
         let mgr = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -50,18 +61,16 @@ final class HIDKeyboardMonitor {
     fileprivate func handle(page: UInt32, usage: UInt32, pressed: Bool) {
         guard page == kHIDPageKeyboard else { return }
         switch usage {
-        case kHIDUsageOptL, kHIDUsageOptR:
-            optionDown = pressed
-        case kHIDUsageArrR where pressed && optionDown:
-            onArrow?(.right)
-        case kHIDUsageArrL where pressed && optionDown:
-            onArrow?(.left)
-        case kHIDUsageArrU where pressed && optionDown:
-            onArrow?(.up)
-        case kHIDUsageArrD where pressed && optionDown:
-            onArrow?(.down)
-        default:
-            break
+        case kHIDUsageOptL,  kHIDUsageOptR:  optionDown  = pressed
+        case kHIDUsageShiftL, kHIDUsageShiftR: shiftDown   = pressed
+        case kHIDUsageCtrlL, kHIDUsageCtrlR: controlDown = pressed
+        case kHIDUsageCmdL,  kHIDUsageCmdR:  commandDown = pressed
+        // Only fire when Option is the sole modifier — no Shift/Control/Command
+        case kHIDUsageArrR where pressed && optionDown && !forbiddenDown: onArrow?(.right)
+        case kHIDUsageArrL where pressed && optionDown && !forbiddenDown: onArrow?(.left)
+        case kHIDUsageArrU where pressed && optionDown && !forbiddenDown: onArrow?(.up)
+        case kHIDUsageArrD where pressed && optionDown && !forbiddenDown: onArrow?(.down)
+        default: break
         }
     }
 }

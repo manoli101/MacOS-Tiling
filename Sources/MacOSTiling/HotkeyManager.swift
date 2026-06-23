@@ -43,7 +43,10 @@ final class HotkeyManager {
 
         // Layer 3: IOHIDManager — deepest intercept point for virtualized keyboards
         let hid = HIDKeyboardMonitor()
-        hid.onArrow = { [weak self] dir in self?.tile(direction: dir) }
+        hid.onArrow = { [weak self] dir in
+            guard let self, !self.textFieldFocused() else { return }
+            self.tile(direction: dir)
+        }
         hid.start()
         hidMonitor = hid
     }
@@ -68,6 +71,7 @@ final class HotkeyManager {
         let forbidden: CGEventFlags = [.maskCommand, .maskShift, .maskControl]
         guard flags.intersection(required) == required,
               flags.intersection(forbidden).isEmpty else { return false }
+        guard !textFieldFocused() else { return false }
 
         let direction: Direction
         switch keyCode {
@@ -80,6 +84,14 @@ final class HotkeyManager {
 
         tile(direction: direction)
         return true
+    }
+
+    private func textFieldFocused() -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        guard let elem = axApp.focusedUIElement else { return false }
+        let r = elem.role ?? ""
+        return r == kAXTextFieldRole as String || r == kAXTextAreaRole as String
     }
 
     // MARK: - Tiling
