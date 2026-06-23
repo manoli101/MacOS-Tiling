@@ -13,7 +13,11 @@ final class WindowManager {
     }
 
     func windowID(_ window: AXUIElement) -> String {
-        "\(window.pid)|\(window.title ?? "")"
+        // Prefer the stable CGWindowID so records don't bleed across windows that share
+        // a title (e.g. two Chrome "New Tab" windows, or a tab navigation that renames
+        // an already-snapped window).
+        if let cgID = window.cgWindowID { return "cgw-\(cgID)" }
+        return "\(window.pid)|\(window.title ?? "unknown")"
     }
 
     // MARK: - Frame  (AppKit coords: origin bottom-left of primary screen)

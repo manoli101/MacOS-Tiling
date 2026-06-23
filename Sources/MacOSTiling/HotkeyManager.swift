@@ -118,12 +118,33 @@ final class HotkeyManager {
 
     // MARK: - Text field guard
 
+    // Returns true only when the user is typing in a real text input that ⌥+Arrow
+    // would navigate (web content text fields, code editors, document text areas).
+    // Browser URL bars are AXTextField children of an AXToolbar — NOT inside a web
+    // area — so they are excluded, allowing Tyler to snap a freshly-opened window
+    // even while the address bar has focus.
     private func textFieldFocused() -> Bool {
         guard let app = NSWorkspace.shared.frontmostApplication else { return false }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         guard let elem = axApp.focusedUIElement else { return false }
         let r = elem.role ?? ""
-        return r == kAXTextFieldRole as String || r == kAXTextAreaRole as String
+        // Multi-line text areas (documents, code editors, terminals) — always block.
+        if r == kAXTextAreaRole as String { return true }
+        // Single-line text fields: only block when inside web content.
+        guard r == kAXTextFieldRole as String else { return false }
+        return isInsideWebArea(elem)
+    }
+
+    // Walks up the AX parent chain (max 10 levels) looking for AXWebArea.
+    // Fast — each call is a local IPC to the app process, typically < 1 ms.
+    private func isInsideWebArea(_ elem: AXUIElement) -> Bool {
+        var current: AXUIElement = elem
+        for _ in 0..<10 {
+            guard let p = current.parent else { break }
+            if p.role == "AXWebArea" { return true }
+            current = p
+        }
+        return false
     }
 
     // MARK: - Tiling

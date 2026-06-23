@@ -14,11 +14,22 @@ extension AXUIElement {
 
     var title: String? { string(kAXTitleAttribute) }
 
+    // Stable system-assigned ID for this window — does NOT change when tab title changes.
+    // Used as the TilingEngine key so windows don't inherit stale snap state after
+    // title changes (e.g. Chrome "New Tab" colliding with a previous window's record).
+    var cgWindowID: CGWindowID? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(self, "AXWindowID" as CFString, &ref) == .success,
+              let num = ref as? NSNumber else { return nil }
+        return CGWindowID(num.uint32Value)
+    }
+
     // MARK: - Navigation
 
     var focusedWindow: AXUIElement?     { element(kAXFocusedWindowAttribute) }
     var mainWindow: AXUIElement?        { element(kAXMainWindowAttribute) }
     var focusedUIElement: AXUIElement?  { element(kAXFocusedUIElementAttribute) }
+    var parent: AXUIElement?            { element(kAXParentAttribute) }
     var role: String?                   { string(kAXRoleAttribute) }
 
     // MARK: - Geometry (AX / Quartz coordinates)
