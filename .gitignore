@@ -1,0 +1,5 @@
+.build/
+MacOSTiling.app/
+*.dmg
+*.p12
+.DS_Store
