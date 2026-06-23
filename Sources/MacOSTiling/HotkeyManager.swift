@@ -20,13 +20,26 @@ final class HotkeyManager {
     private let windowManager = WindowManager()
     private lazy var dragSnap  = DragSnapManager(windowManager: windowManager)
 
+    // NSEvent fallback monitor — fires in VMs where CGEventTap misses keyboard events.
+    // On a real Mac the tap consumes ⌥+Arrow first, so this never double-fires.
+    private var keyFallbackMonitor: Any?
+
     // Double-press Down detection for minimize (CACurrentMediaTime is monotonic and cheaper than Date)
     private var lastDownTime: Double = 0
 
     func start() {
         HotkeyManager.instance = self
         _ = dragSnap  // Initialize drag-snap monitor immediately
+        startKeyFallbackMonitor()
         attemptTapCreation()
+    }
+
+    private func startKeyFallbackMonitor() {
+        keyFallbackMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let keyCode = CGKeyCode(event.keyCode)
+            let flags = CGEventFlags(rawValue: UInt64(event.modifierFlags.rawValue))
+            _ = self?.handle(keyCode: keyCode, flags: flags)
+        }
     }
 
     private func attemptTapCreation() {
@@ -58,8 +71,10 @@ final class HotkeyManager {
     func stop() {
         if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let src = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes) }
+        if let monitor = keyFallbackMonitor { NSEvent.removeMonitor(monitor) }
         eventTap = nil
         runLoopSource = nil
+        keyFallbackMonitor = nil
         HotkeyManager.instance = nil
     }
 
