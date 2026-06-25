@@ -8,11 +8,11 @@ struct Shortcut: Codable, Equatable {
     let modifiers: UInt   // NSEvent.ModifierFlags rawValue (only command/option/control/shift bits)
 
     static let defaults: [String: Shortcut] = [
-        "left":  Shortcut(keyCode: 123, modifiers: NSEvent.ModifierFlags.option.rawValue),
-        "right": Shortcut(keyCode: 124, modifiers: NSEvent.ModifierFlags.option.rawValue),
-        "up":    Shortcut(keyCode: 126, modifiers: NSEvent.ModifierFlags.option.rawValue),
-        "down":  Shortcut(keyCode: 125, modifiers: NSEvent.ModifierFlags.option.rawValue),
-        "undo":  Shortcut(keyCode: 6,   modifiers: NSEvent.ModifierFlags.option.rawValue), // ⌥Z
+        "left":  Shortcut(keyCode: 123, modifiers: NSEvent.ModifierFlags.control.rawValue),
+        "right": Shortcut(keyCode: 124, modifiers: NSEvent.ModifierFlags.control.rawValue),
+        "up":    Shortcut(keyCode: 126, modifiers: NSEvent.ModifierFlags.control.rawValue),
+        "down":  Shortcut(keyCode: 125, modifiers: NSEvent.ModifierFlags.control.rawValue),
+        "undo":  Shortcut(keyCode: 6,   modifiers: NSEvent.ModifierFlags.control.rawValue), // ⌃Z
     ]
 
     var displayString: String {
