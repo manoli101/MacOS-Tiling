@@ -77,7 +77,10 @@ final class HotkeyManager {
         ]
         for (action, direction) in actionMap {
             if let sc = sc[action], matchesShortcut(sc, keyCode: keyCode, flags: flags) {
-                guard !textFieldFocused() else { return false }
+                // Only respect text fields when the shortcut would otherwise navigate text
+                // (Option = by word, Command = by line/doc). Control/Shift arrows never
+                // navigate text on macOS, so tiling works even while editing (Notes, TextEdit…).
+                if shortcutConflictsWithText(sc) && textFieldFocused() { return false }
                 tile(direction: direction)
                 return true
             }
@@ -117,6 +120,15 @@ final class HotkeyManager {
     }
 
     // MARK: - Text field guard
+
+    // A shortcut only collides with macOS text navigation when it uses Option (jump by
+    // word) or Command (jump by line/doc). Control/Shift+arrows do not navigate text, so
+    // they are safe to use for tiling even while a text field/area is focused.
+    private func shortcutConflictsWithText(_ sc: Shortcut) -> Bool {
+        let f = NSEvent.ModifierFlags(rawValue: sc.modifiers)
+        if f.contains(.control) { return false }
+        return f.contains(.option) || f.contains(.command)
+    }
 
     // Returns true only when the user is typing in a real text input that ⌥+Arrow
     // would navigate (web content text fields, code editors, document text areas).
