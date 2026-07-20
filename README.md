@@ -63,4 +63,4 @@ bash Scripts/uninstall.sh
 
 ## Support
 
-If Tyler saves you time, consider [buying me a coffee ☕](https://github.com/sponsors/manoli101)
+If Tyler saves you time, consider [buying me a coffee ☕](https://ko-fi.com/manueltenorio)
